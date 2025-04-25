@@ -80,13 +80,13 @@ const ChartApplications: React.FC<ChartApplicationsProps> = ({
               className="relative z-20 inline-flex appearance-none bg-transparent py-1 pl-3 pr-8 text-sm font-medium outline-none"
             >
               <option value="" className="dark:bg-boxdark">
+                Fall 2025
+              </option>
+              <option value="" className="dark:bg-boxdark">
                 Spring 2025
               </option>
               <option value="" className="dark:bg-boxdark">
                 Fall 2024
-              </option>
-              <option value="" className="dark:bg-boxdark">
-                Summer 2024
               </option>
               <option value="" className="dark:bg-boxdark">
                 Spring 2024

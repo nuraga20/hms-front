@@ -1,207 +1,192 @@
-import { useEffect, useRef, useState } from 'react';
-import { useModal } from '../../hooks/useModal';
-import { Modal } from '../UiElements/Modal';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
-import { Link, useParams } from 'react-router-dom';
-import {
-  buildingsData,
-  maintenanceRequestsData,
-  roomsData,
-} from '../../data/sampleData';
-import CoverOne from '../../images/cover/bed.jpg';
-import { usersData } from '../../data/sampleData';
+import { getMaintenanceRequestById, updateMaintenanceRequest } from '../../api/incidents';
 
-const maintenancePersonnel = usersData
-  .filter((user) => user.role === 'maintenance')
-  .map((user) => `${user.first_name} ${user.last_name}`);
+interface MaintenanceRequest {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  created_at: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  assigned_to: string | null;
+}
 
-const MaintenanceRequestDetails = () => {
-  const { id } = useParams();
-  const requestId = Number(id);
-  const maintenanceRequest = maintenanceRequestsData.find(
-    (req) => req.request_id === requestId,
-  );
+const MaintenanceRequestDetails: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [request, setRequest] = useState<MaintenanceRequest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<MaintenanceRequest['status']>('pending');
 
-  if (!maintenanceRequest) return <p>Request not found</p>;
-
-  const room = roomsData.find(
-    (room) => room.building_id === maintenanceRequest.room_id,
-  );
-
-  const building = buildingsData.find(
-    (building) => building.id === room?.building_id,
-  );
-
-  const { isOpen, openModal, closeModal } = useModal();
-
-  // State for Status dropdown
-  const [status, setStatus] = useState(maintenanceRequest.status);
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-  const statusDropdownRef = useRef(null);
-
-  // State for Assigned To dropdown
-  const [assignedTo, setAssignedTo] = useState(
-    maintenanceRequest.staff_id || 'Not Assigned',
-  );
-  const [assignedToDropdownOpen, setAssignedToDropdownOpen] = useState(false);
-  const assignedToDropdownRef = useRef(null);
-
-  // Function to handle clicks outside dropdown
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        statusDropdownRef.current &&
-        !(statusDropdownRef.current as HTMLElement).contains(
-          event.target as Node,
-        )
-      ) {
-        setStatusDropdownOpen(false);
-      }
-
-      if (
-        assignedToDropdownRef.current &&
-        !(assignedToDropdownRef.current as HTMLElement).contains(
-          event.target as Node,
-        )
-      ) {
-        setAssignedToDropdownOpen(false);
+    const fetchRequest = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const response = await getMaintenanceRequestById(id);
+        setRequest(response.data);
+        setStatus(response.data.status);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch maintenance request details');
+        console.error('Error fetching maintenance request:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    fetchRequest();
+  }, [id]);
+
+  const handleStatusUpdate = async () => {
+    if (!id || !request) return;
+
+    try {
+      await updateMaintenanceRequest(id, { ...request, status });
+      setRequest({ ...request, status });
+    } catch (err) {
+      setError('Failed to update maintenance request status');
+      console.error('Error updating maintenance request:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
+
+  if (!request) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-red-500">Maintenance request not found</div>
+      </div>
+    );
+  }
 
   return (
     <>
       <Breadcrumb pageName="Maintenance Request Details" />
-      <div className="grid grid-cols-1 sm:grid-cols-2">
+
+      <div className="flex flex-col gap-10">
         <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-          {/* Clickable Image */}
-          <img
-            src={CoverOne}
-            alt="Maintenance Cover"
-            className="w-full h-48 object-cover rounded-t-sm cursor-pointer"
-            onClick={openModal}
-          />
-
-          {/* Modal for Full-Size Image */}
-          <Modal isOpen={isOpen} onClose={closeModal} className="max-w-4xl">
-            <div className="relative w-full p-4 bg-white dark:bg-gray-900 rounded-2xl">
-              <img
-                src={CoverOne}
-                alt="Full-Size Image"
-                className="w-full h-auto rounded-sm"
-              />
+          <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
+            <h3 className="font-medium text-black dark:text-white">
+              Request Information
+            </h3>
+          </div>
+          <div className="p-6.5">
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Name
+              </label>
+              <div className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                {request.first_name} {request.last_name}
+              </div>
             </div>
-          </Modal>
 
-          {/* Card Content */}
-          <div className="px-5 pt-6 pb-6 sm:px-7.5 xl:pb-6">
-            <div className="grid grid-cols-2 gap-y-2">
-              {[
-                ['Request ID', maintenanceRequest.request_id],
-                ['NU ID', maintenanceRequest.resident_id],
-                ['Building', building?.name],
-                ['Room', room?.room_number],
-              ].map(([label, value]) => (
-                <div key={label} className="contents">
-                  <span className="text-gray-500">{label}</span>
-                  <span className="grid text-gray-700 place-items-end">
-                    {value}
-                  </span>
-                </div>
-              ))}
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Email
+              </label>
+              <div className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                {request.email}
+              </div>
+            </div>
 
-              {/* Assigned To */}
-              <span className="text-gray-500">Assigned To</span>
-              <span
-                ref={assignedToDropdownRef}
-                className="relative grid place-items-end cursor-pointer"
-                onClick={() =>
-                  setAssignedToDropdownOpen(!assignedToDropdownOpen)
-                }
-              >
-                <span className="text-gray-700">{assignedTo}</span>
-                {assignedToDropdownOpen && (
-                  <ul className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-md z-10">
-                    {['Not Assigned', ...maintenancePersonnel].map((option) => (
-                      <li
-                        key={option}
-                        className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer whitespace-nowrap"
-                        onClick={() => {
-                          setAssignedTo(option);
-                          setAssignedToDropdownOpen(false);
-                        }}
-                      >
-                        {option}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </span>
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Phone
+              </label>
+              <div className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                {request.phone || 'N/A'}
+              </div>
+            </div>
 
-              {/* Status */}
-              <span className="text-gray-500">Status</span>
-              <span
-                ref={statusDropdownRef}
-                className="relative grid place-items-end cursor-pointer"
-                onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-              >
-                <span
-                  className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${
-                    status === 'completed'
-                      ? 'bg-success text-success'
-                      : status === 'rejected'
-                      ? 'bg-danger text-danger'
-                      : 'bg-warning text-warning'
-                  }`}
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Description
+              </label>
+              <div className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                {request.description}
+              </div>
+            </div>
+
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Priority
+              </label>
+              <div className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
+              </div>
+            </div>
+
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Status
+              </label>
+              <div className="relative z-20 bg-transparent dark:bg-form-input">
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as MaintenanceRequest['status'])}
+                  className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                 >
-                  {status}
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <span className="absolute top-1/2 right-4 z-10 -translate-y-1/2">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <g opacity="0.8">
+                      <path
+                        fillRule="evenodd"
+                        clipRule="evenodd"
+                        d="M5.29289 8.29289C5.68342 7.90237 6.31658 7.90237 6.70711 8.29289L12 13.5858L17.2929 8.29289C17.6834 7.90237 18.3166 7.90237 18.7071 8.29289C19.0976 8.68342 19.0976 9.31658 18.7071 9.70711L12.7071 15.7071C12.3166 16.0976 11.6834 16.0976 11.2929 15.7071L5.29289 9.70711C4.90237 9.31658 4.90237 8.68342 5.29289 8.29289Z"
+                        fill="#637381"
+                      ></path>
+                    </g>
+                  </svg>
                 </span>
-                {statusDropdownOpen && (
-                  <ul className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-md z-10">
-                    {['pending', 'in_progress', 'completed', 'rejected'].map(
-                      (option) => (
-                        <li
-                          key={option}
-                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setStatus(
-                              option as
-                                | 'pending'
-                                | 'in_progress'
-                                | 'completed'
-                                | 'rejected',
-                            );
-                            setStatusDropdownOpen(false);
-                          }}
-                        >
-                          {option}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                )}
-              </span>
+              </div>
             </div>
 
-            {/* Buttons */}
-            <div className="flex flex-row gap-3 pt-3 pb-3">
-              <Link
-                to="#"
-                className="inline-flex items-center justify-center rounded-sm border border-primary bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+            <div className="flex justify-end gap-4.5">
+              <button
+                onClick={() => navigate('/incidents')}
+                className="flex justify-center rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
               >
-                Save
-              </Link>
-              <Link
-                to="/incidents/maintenanceRequests"
-                className="inline-flex items-center justify-center rounded-sm border border-primary py-4 px-10 text-center font-medium text-primary hover:bg-opacity-90 lg:px-8 xl:px-10"
+                Cancel
+              </button>
+              <button
+                onClick={handleStatusUpdate}
+                className="flex justify-center rounded bg-primary py-2 px-6 font-medium text-gray hover:bg-opacity-90"
               >
-                Back
-              </Link>
+                Update Status
+              </button>
             </div>
           </div>
         </div>

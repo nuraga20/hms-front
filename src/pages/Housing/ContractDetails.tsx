@@ -1,207 +1,185 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getContractById } from '../../api/contracts';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
-import { contractData, buildingsData, roomsData, residentsData, usersData } from '../../data/sampleData';
+
+interface Contract {
+  id: string;
+  resident_id: string;
+  resident_name: string;
+  room_id: string;
+  room_number: string;
+  building_id: string;
+  building_name: string;
+  contract_type: string;
+  start_date: string;
+  end_date: string;
+  rent_amount: number;
+  status: 'active' | 'expired' | 'terminated';
+  created_at: string;
+  description?: string;
+  terms?: string[];
+}
 
 const ContractDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const contractId = Number(id);
+  const navigate = useNavigate();
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Find the contract by ID
-  const contract = contractData.find((c) => c.contract_id === contractId);
+  useEffect(() => {
+    const fetchContract = async () => {
+      if (!id) return;
 
-  if (!contract) {
+      try {
+        setLoading(true);
+        const response = await getContractById(id);
+        setContract(response.data);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch contract details');
+        console.error('Error fetching contract:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContract();
+  }, [id]);
+
+  if (loading) {
     return (
-      <>
-        <Breadcrumb pageName="Contract Details" />
-        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-          <div className="border-b border-stroke py-4 px-7 dark:border-strokedark">
-            <h3 className="font-medium text-black dark:text-white text-xl">
-              Contract not found
-            </h3>
-          </div>
-          <div className="p-7">
-            <Link
-              to="/housing/contracts"
-              className="inline-flex items-center justify-center rounded-md border border-stroke py-2 px-6 text-center font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
-            >
-              Back to Contracts
-            </Link>
-          </div>
-        </div>
-      </>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
-  // Find the associated room and building
-  const room = roomsData.find((room) => room.room_id === contract.room_id);
-  const building = buildingsData.find(
-    (building) => building.id === contract.building_id,
-  );
-  
-  // Find the resident and user information
-  const resident = residentsData.find((r) => r.resident_id === contract.resident_id);
-  const user = resident ? usersData.find((u) => u.user_id === resident.user_id) : null;
-  
-  // Format dates
-  const startDate = new Date(contract.start_date);
-  const endDate = new Date(contract.end_date);
-  
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active':
-        return 'bg-success bg-opacity-10 text-success';
-      case 'Inactive':
-        return 'bg-danger bg-opacity-10 text-danger';
-      default:
-        return 'bg-warning bg-opacity-10 text-warning';
-    }
-  };
+  if (error || !contract) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-red-500">{error || 'Contract not found'}</div>
+      </div>
+    );
+  }
 
   return (
     <>
-      <Breadcrumb pageName="Contract Details" />
+      <Breadcrumb pageName={`Contract ${contract.id}`} />
 
-      <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-        {/* Contract Header */}
-        <div className="border-b border-stroke py-4 px-7 dark:border-strokedark">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium text-black dark:text-white text-xl">
-              Contract #{contract.contract_id}
-            </h3>
-            <span className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${getStatusColor(contract.contract_status)}`}>
-              {contract.contract_status}
-            </span>
-          </div>
-        </div>
-
-        {/* Contract Content */}
-        <div className="p-7">
-          {/* Contract Header Section */}
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold mb-2">HOUSING CONTRACT</h1>
-            <p className="text-gray-500 dark:text-gray-400">Nazarbayev University Housing Management System</p>
-          </div>
-
-          {/* Contract Body */}
-          <div className="space-y-8">
-            {/* Contract Information */}
-            <div className="rounded-sm border border-stroke bg-white p-4 dark:border-strokedark dark:bg-boxdark">
-              <h4 className="mb-4 text-lg font-medium text-black dark:text-white border-b border-stroke pb-2 dark:border-strokedark">
-                Contract Information
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Contract ID</p>
-                  <p className="font-medium text-black dark:text-white">{contract.contract_id}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Contract Type</p>
-                  <p className="font-medium text-black dark:text-white">{contract.contract_type}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Start Date</p>
-                  <p className="font-medium text-black dark:text-white">{startDate.toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">End Date</p>
-                  <p className="font-medium text-black dark:text-white">{endDate.toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Rent Amount</p>
-                  <p className="font-medium text-black dark:text-white">${contract.rent_amount} per month</p>
-                </div>
-              </div>
+      <div className="grid grid-cols-1 gap-9">
+        <div className="flex flex-col gap-9">
+          <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+            <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
+              <h3 className="font-medium text-black dark:text-white">
+                Contract Details
+              </h3>
             </div>
-
-            {/* Resident Information */}
-            <div className="rounded-sm border border-stroke bg-white p-4 dark:border-strokedark dark:bg-boxdark">
-              <h4 className="mb-4 text-lg font-medium text-black dark:text-white border-b border-stroke pb-2 dark:border-strokedark">
-                Resident Information
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6.5">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Resident ID</p>
-                  <p className="font-medium text-black dark:text-white">{contract.resident_id}</p>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Resident
+                  </label>
+                  <p className="text-black dark:text-white">{contract.resident_name}</p>
                 </div>
-                {user && (
-                  <>
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Name</p>
-                      <p className="font-medium text-black dark:text-white">{user.first_name} {user.last_name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-                      <p className="font-medium text-black dark:text-white">{user.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Phone</p>
-                      <p className="font-medium text-black dark:text-white">{user.phone || 'N/A'}</p>
-                    </div>
-                  </>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Room
+                  </label>
+                  <p className="text-black dark:text-white">{contract.room_number}</p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Building
+                  </label>
+                  <p className="text-black dark:text-white">{contract.building_name}</p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Contract Type
+                  </label>
+                  <p className="text-black dark:text-white">{contract.contract_type}</p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Start Date
+                  </label>
+                  <p className="text-black dark:text-white">
+                    {new Date(contract.start_date).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    End Date
+                  </label>
+                  <p className="text-black dark:text-white">
+                    {new Date(contract.end_date).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Rent Amount
+                  </label>
+                  <p className="text-black dark:text-white">
+                    ${contract.rent_amount.toLocaleString()}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-black dark:text-white">
+                    Status
+                  </label>
+                  <p className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${
+                    contract.status === 'active' ? 'bg-success text-success' :
+                    contract.status === 'expired' ? 'bg-warning text-warning' :
+                    'bg-danger text-danger'
+                  }`}>
+                    {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)}
+                  </p>
+                </div>
+
+                {contract.description && (
+                  <div className="md:col-span-2">
+                    <label className="mb-3 block text-black dark:text-white">
+                      Description
+                    </label>
+                    <p className="text-black dark:text-white">{contract.description}</p>
+                  </div>
+                )}
+
+                {contract.terms && contract.terms.length > 0 && (
+                  <div className="md:col-span-2">
+                    <label className="mb-3 block text-black dark:text-white">
+                      Terms
+                    </label>
+                    <ul className="list-disc pl-5">
+                      {contract.terms.map((term, index) => (
+                        <li key={index} className="text-black dark:text-white">
+                          {term}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Housing Information */}
-            <div className="rounded-sm border border-stroke bg-white p-4 dark:border-strokedark dark:bg-boxdark">
-              <h4 className="mb-4 text-lg font-medium text-black dark:text-white border-b border-stroke pb-2 dark:border-strokedark">
-                Housing Information
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Building</p>
-                  <p className="font-medium text-black dark:text-white">{building ? building.name : 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Room Number</p>
-                  <p className="font-medium text-black dark:text-white">{room ? room.room_number : 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Building Type</p>
-                  <p className="font-medium text-black dark:text-white">{building ? building.type : 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Building Address</p>
-                  <p className="font-medium text-black dark:text-white">{building ? building.address : 'N/A'}</p>
-                </div>
+              <div className="mt-6 flex justify-end gap-4">
+                <button
+                  onClick={() => navigate('/housing/contracts')}
+                  className="flex justify-center rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
+                >
+                  Back to Contracts
+                </button>
               </div>
             </div>
-
-            {/* Contract Terms */}
-            <div className="rounded-sm border border-stroke bg-white p-4 dark:border-strokedark dark:bg-boxdark">
-              <h4 className="mb-4 text-lg font-medium text-black dark:text-white border-b border-stroke pb-2 dark:border-strokedark">
-                Contract Terms
-              </h4>
-              <div className="space-y-4">
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  This contract is binding between the resident and the housing management system. The resident agrees to pay the specified rent amount on time and follow all housing policies.
-                </p>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  The contract is valid from {startDate.toLocaleDateString()} to {endDate.toLocaleDateString()}. Early termination may be subject to penalties as per housing policies.
-                </p>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  The resident is responsible for maintaining the room in good condition and reporting any maintenance issues promptly.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="mt-8 flex justify-end space-x-4">
-            <Link
-              to="/housing/contracts"
-              className="inline-flex items-center justify-center rounded-md border border-stroke py-2 px-6 text-center font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
-            >
-              Back to Contracts
-            </Link>
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center justify-center rounded-md border border-primary bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
-            >
-              Print Contract
-            </button>
           </div>
         </div>
       </div>

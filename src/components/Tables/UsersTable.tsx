@@ -1,7 +1,17 @@
 import React from 'react';
-import { usersData } from '../../data/sampleData';
+
+interface User {
+  user_id: string;
+  nu_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  role: string;
+}
 
 interface UsersTableProps {
+  users: User[];
   nuidFilter: string;
   nameFilter: string;
   emailFilter: string;
@@ -10,6 +20,7 @@ interface UsersTableProps {
 }
 
 const UsersTable: React.FC<UsersTableProps> = ({ 
+  users,
   nuidFilter,
   nameFilter,
   emailFilter,
@@ -17,7 +28,7 @@ const UsersTable: React.FC<UsersTableProps> = ({
   roleFilter
 }) => {
   // Filter users based on all filters
-  const filteredUsers = usersData.filter((user) => {
+  const filteredUsers = users.filter((user) => {
     const matchesNuid = nuidFilter
       ? user.nu_id.toString().includes(nuidFilter)
       : true;

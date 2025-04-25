@@ -1,375 +1,199 @@
-// import React, { useState, useEffect } from 'react';
-// import { useNavigate, useParams } from 'react-router-dom';
-// import { applicationsData, usersData } from '../../data/sampleData';
-// import { Application } from '../../types/hms';
-// import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
+import { createApplicationForm } from '../../api/applications';
 
-// const ApplicationForm: React.FC = () => {
-//   const { id } = useParams<{ id: string }>();
-//   const navigate = useNavigate();
-//   const isEditMode = Boolean(id);
+interface ApplicationFormData {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  housing_type: string;
+  additional_info: string;
+}
 
-//   const [formData, setFormData] = useState({
-//     application_id: '',
-//     user_id: '',
-//     nu_id: '', // Will be fetched automatically
-//     roommate_nu_id: '',
-//     application_date: new Date().toISOString().split('T')[0],
-//     status: 'pending',
-//     review_notes: '',
-//     roommate_preferences: [] as number[],
-//     documents: {
-//       self_address: null as File | null,
-//       mom_address: null as File | null,
-//       dad_address: null as File | null,
-//       mom_work: null as File | null,
-//       dad_work: null as File | null,
-//     },
-//   });
+const ApplicationForm: React.FC = () => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState<ApplicationFormData>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    housing_type: '',
+    additional_info: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-//   useEffect(() => {
-//     if (isEditMode) {
-//       const application = applicationsData.find(
-//         (app) => app.application_id === Number(id)
-//       );
-//       if (application) {
-//         setFormData((prev) => ({
-//           ...prev,
-//           application_id: application.application_id.toString(),
-//           user_id: application.user_id.toString(),
-//           application_date: new Date(application.application_date)
-//             .toISOString()
-//             .split('T')[0],
-//           status: application.status,
-//           review_notes: application.review_notes || '',
-//           roommate_preferences: application.roommate_preferences || [],
-//         }));
-//       }
-//     } else {
-//       // For new applications, fetch the current user's NUID
-//       const currentUser = usersData[0]; // Replace with actual user data fetching
-//       if (currentUser) {
-//         setFormData((prev) => ({
-//           ...prev,
-//           nu_id: currentUser.nu_id.toString(),
-//         }));
-//       }
-//     }
-//   }, [id, isEditMode]);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
-//   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-//     const { name, value } = e.target;
-//     setFormData((prev) => ({ ...prev, [name]: value }));
-//   };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-//   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     const { name, files } = e.target;
-//     if (files && files[0]) {
-//       setFormData((prev) => ({
-//         ...prev,
-//         documents: {
-//           ...prev.documents,
-//           [name]: files[0],
-//         },
-//       }));
-//     }
-//   };
+    try {
+      await createApplicationForm(formData);
+      navigate('/applications');
+    } catch (err) {
+      setError('Failed to submit application');
+      console.error('Error submitting application:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-//   const handleSubmit = (e: React.FormEvent) => {
-//     e.preventDefault();
-    
-//     // Create a new application object
-//     const newApplication: Application = {
-//       application_id: applicationsData.length + 1, // Generate a new ID
-//       user_id: 1, // This should be the current user's ID
-//       application_date: new Date(),
-//       status: 'pending',
-//       roommate_preferences: formData.roommate_nu_id ? [parseInt(formData.roommate_nu_id)] : [],
-//       review_notes: '',
-//     };
+  return (
+    <>
+      <Breadcrumb pageName="New Application" />
 
-//     // Add the new application to the applicationsData array
-//     applicationsData.push(newApplication);
+      <div className="flex flex-col gap-10">
+        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+          <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
+            <h3 className="font-medium text-black dark:text-white">
+              Application Form
+            </h3>
+          </div>
+          <form onSubmit={handleSubmit} className="p-6.5">
+            {error && (
+              <div className="mb-4.5 text-danger">
+                {error}
+              </div>
+            )}
 
-//     // Navigate back to the applications list
-//     navigate('/applications/applications');
-//   };
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                First Name
+              </label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                required
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              />
+            </div>
 
-//   return (
-//     <>
-//       <Breadcrumb pageName={isEditMode ? 'Edit Application' : 'Create Application'} />
-//       <div className="p-6 bg-white dark:bg-boxdark rounded shadow-md">
-//         <h1 className="text-2xl font-bold mb-4">
-//           {isEditMode ? 'Edit Application' : 'Create Application'}
-//         </h1>
-//         <form onSubmit={handleSubmit} className="space-y-6">
-//           {/* NUID Field (Read-only) */}
-//           <div className="mb-4">
-//             <label className="block text-sm font-medium mb-2">NUID</label>
-//             <input
-//               type="text"
-//               name="nu_id"
-//               value={formData.nu_id}
-//               readOnly
-//               className="w-full rounded border border-stroke py-2 px-3 bg-gray-100"
-//             />
-//           </div>
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Last Name
+              </label>
+              <input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                required
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              />
+            </div>
 
-//           {/* Roommate NUID Field */}
-//           <div className="mb-4">
-//             <label className="block text-sm font-medium mb-2">Preferred Roommate NUID</label>
-//             <input
-//               type="text"
-//               name="roommate_nu_id"
-//               value={formData.roommate_nu_id}
-//               onChange={handleChange}
-//               className="w-full rounded border border-stroke py-2 px-3"
-//               placeholder="Enter Roommate's NUID"
-//             />
-//           </div>
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Email
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              />
+            </div>
 
-//           {/* Document Uploads */}
-//           <div className="space-y-4">
-//             <h3 className="text-lg font-semibold text-black dark:text-white">Required Documents</h3>
-            
-//             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-//               {/* Self Address Document */}
-//               <div className="rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
-//                 <div className="flex items-center justify-between">
-//                   <label className="text-sm font-medium text-black dark:text-white">Self Address Document</label>
-//                   <span className="text-xs text-meta-1">*</span>
-//                 </div>
-//                 <div className="mt-2">
-//                   <div className="flex items-center justify-center w-full">
-//                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-boxdark-2 hover:bg-gray-100 dark:hover:bg-boxdark-3 border-stroke dark:border-strokedark">
-//                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-//                         <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-//                           <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-//                         </svg>
-//                         <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-//                           <span className="font-semibold">Click to upload</span> or drag and drop
-//                         </p>
-//                         <p className="text-xs text-gray-500 dark:text-gray-400">PDF (MAX. 2MB)</p>
-//                       </div>
-//                       <input
-//                         type="file"
-//                         name="self_address"
-//                         onChange={handleFileChange}
-//                         accept=".pdf"
-//                         className="hidden"
-//                       />
-//                     </label>
-//                   </div>
-//                   {formData.documents.self_address && (
-//                     <div className="mt-2 flex items-center justify-between text-sm text-black dark:text-white">
-//                       <span>{formData.documents.self_address.name}</span>
-//                       <button
-//                         type="button"
-//                         onClick={() => setFormData(prev => ({
-//                           ...prev,
-//                           documents: { ...prev.documents, self_address: null }
-//                         }))}
-//                         className="text-danger hover:text-danger-dark"
-//                       >
-//                         Remove
-//                       </button>
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Phone
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              />
+            </div>
 
-//               {/* Mom's Address Document */}
-//               <div className="rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
-//                 <div className="flex items-center justify-between">
-//                   <label className="text-sm font-medium text-black dark:text-white">Mother's Address Document</label>
-//                   <span className="text-xs text-meta-1">*</span>
-//                 </div>
-//                 <div className="mt-2">
-//                   <div className="flex items-center justify-center w-full">
-//                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-boxdark-2 hover:bg-gray-100 dark:hover:bg-boxdark-3 border-stroke dark:border-strokedark">
-//                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-//                         <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-//                           <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-//                         </svg>
-//                         <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-//                           <span className="font-semibold">Click to upload</span> or drag and drop
-//                         </p>
-//                         <p className="text-xs text-gray-500 dark:text-gray-400">PDF (MAX. 2MB)</p>
-//                       </div>
-//                       <input
-//                         type="file"
-//                         name="mom_address"
-//                         onChange={handleFileChange}
-//                         accept=".pdf"
-//                         className="hidden"
-//                       />
-//                     </label>
-//                   </div>
-//                   {formData.documents.mom_address && (
-//                     <div className="mt-2 flex items-center justify-between text-sm text-black dark:text-white">
-//                       <span>{formData.documents.mom_address.name}</span>
-//                       <button
-//                         type="button"
-//                         onClick={() => setFormData(prev => ({
-//                           ...prev,
-//                           documents: { ...prev.documents, mom_address: null }
-//                         }))}
-//                         className="text-danger hover:text-danger-dark"
-//                       >
-//                         Remove
-//                       </button>
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Housing Type
+              </label>
+              <div className="relative z-20 bg-transparent dark:bg-form-input">
+                <select
+                  name="housing_type"
+                  value={formData.housing_type}
+                  onChange={handleChange}
+                  required
+                  className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                >
+                  <option value="">Select Housing Type</option>
+                  <option value="dormitory">Dormitory</option>
+                  <option value="apartment">Apartment</option>
+                  <option value="townhouse">Townhouse</option>
+                </select>
+                <span className="absolute top-1/2 right-4 z-10 -translate-y-1/2">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <g opacity="0.8">
+                      <path
+                        fillRule="evenodd"
+                        clipRule="evenodd"
+                        d="M5.29289 8.29289C5.68342 7.90237 6.31658 7.90237 6.70711 8.29289L12 13.5858L17.2929 8.29289C17.6834 7.90237 18.3166 7.90237 18.7071 8.29289C19.0976 8.68342 19.0976 9.31658 18.7071 9.70711L12.7071 15.7071C12.3166 16.0976 11.6834 16.0976 11.2929 15.7071L5.29289 9.70711C4.90237 9.31658 4.90237 8.68342 5.29289 8.29289Z"
+                        fill="#637381"
+                      ></path>
+                    </g>
+                  </svg>
+                </span>
+              </div>
+            </div>
 
-//               {/* Dad's Address Document */}
-//               <div className="rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
-//                 <div className="flex items-center justify-between">
-//                   <label className="text-sm font-medium text-black dark:text-white">Father's Address Document</label>
-//                   <span className="text-xs text-meta-1">*</span>
-//                 </div>
-//                 <div className="mt-2">
-//                   <div className="flex items-center justify-center w-full">
-//                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-boxdark-2 hover:bg-gray-100 dark:hover:bg-boxdark-3 border-stroke dark:border-strokedark">
-//                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-//                         <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-//                           <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-//                         </svg>
-//                         <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-//                           <span className="font-semibold">Click to upload</span> or drag and drop
-//                         </p>
-//                         <p className="text-xs text-gray-500 dark:text-gray-400">PDF (MAX. 2MB)</p>
-//                       </div>
-//                       <input
-//                         type="file"
-//                         name="dad_address"
-//                         onChange={handleFileChange}
-//                         accept=".pdf"
-//                         className="hidden"
-//                       />
-//                     </label>
-//                   </div>
-//                   {formData.documents.dad_address && (
-//                     <div className="mt-2 flex items-center justify-between text-sm text-black dark:text-white">
-//                       <span>{formData.documents.dad_address.name}</span>
-//                       <button
-//                         type="button"
-//                         onClick={() => setFormData(prev => ({
-//                           ...prev,
-//                           documents: { ...prev.documents, dad_address: null }
-//                         }))}
-//                         className="text-danger hover:text-danger-dark"
-//                       >
-//                         Remove
-//                       </button>
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
+            <div className="mb-4.5">
+              <label className="mb-2.5 block text-black dark:text-white">
+                Additional Information
+              </label>
+              <textarea
+                name="additional_info"
+                value={formData.additional_info}
+                onChange={handleChange}
+                rows={4}
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              />
+            </div>
 
-//               {/* Mom's Work Certificate */}
-//               <div className="rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
-//                 <div className="flex items-center justify-between">
-//                   <label className="text-sm font-medium text-black dark:text-white">Mother's Work Certificate</label>
-//                   <span className="text-xs text-meta-1">*</span>
-//                 </div>
-//                 <div className="mt-2">
-//                   <div className="flex items-center justify-center w-full">
-//                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-boxdark-2 hover:bg-gray-100 dark:hover:bg-boxdark-3 border-stroke dark:border-strokedark">
-//                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-//                         <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-//                           <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-//                         </svg>
-//                         <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-//                           <span className="font-semibold">Click to upload</span> or drag and drop
-//                         </p>
-//                         <p className="text-xs text-gray-500 dark:text-gray-400">PDF (MAX. 2MB)</p>
-//                       </div>
-//                       <input
-//                         type="file"
-//                         name="mom_work"
-//                         onChange={handleFileChange}
-//                         accept=".pdf"
-//                         className="hidden"
-//                       />
-//                     </label>
-//                   </div>
-//                   {formData.documents.mom_work && (
-//                     <div className="mt-2 flex items-center justify-between text-sm text-black dark:text-white">
-//                       <span>{formData.documents.mom_work.name}</span>
-//                       <button
-//                         type="button"
-//                         onClick={() => setFormData(prev => ({
-//                           ...prev,
-//                           documents: { ...prev.documents, mom_work: null }
-//                         }))}
-//                         className="text-danger hover:text-danger-dark"
-//                       >
-//                         Remove
-//                       </button>
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
+            <div className="flex justify-end gap-4.5">
+              <button
+                type="button"
+                onClick={() => navigate('/applications')}
+                className="flex justify-center rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex justify-center rounded bg-primary py-2 px-6 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Submitting...' : 'Submit Application'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+};
 
-//               {/* Dad's Work Certificate */}
-//               <div className="rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
-//                 <div className="flex items-center justify-between">
-//                   <label className="text-sm font-medium text-black dark:text-white">Father's Work Certificate</label>
-//                   <span className="text-xs text-meta-1">*</span>
-//                 </div>
-//                 <div className="mt-2">
-//                   <div className="flex items-center justify-center w-full">
-//                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-boxdark-2 hover:bg-gray-100 dark:hover:bg-boxdark-3 border-stroke dark:border-strokedark">
-//                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-//                         <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-//                           <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-//                         </svg>
-//                         <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-//                           <span className="font-semibold">Click to upload</span> or drag and drop
-//                         </p>
-//                         <p className="text-xs text-gray-500 dark:text-gray-400">PDF (MAX. 2MB)</p>
-//                       </div>
-//                       <input
-//                         type="file"
-//                         name="dad_work"
-//                         onChange={handleFileChange}
-//                         accept=".pdf"
-//                         className="hidden"
-//                       />
-//                     </label>
-//                   </div>
-//                   {formData.documents.dad_work && (
-//                     <div className="mt-2 flex items-center justify-between text-sm text-black dark:text-white">
-//                       <span>{formData.documents.dad_work.name}</span>
-//                       <button
-//                         type="button"
-//                         onClick={() => setFormData(prev => ({
-//                           ...prev,
-//                           documents: { ...prev.documents, dad_work: null }
-//                         }))}
-//                         className="text-danger hover:text-danger-dark"
-//                       >
-//                         Remove
-//                       </button>
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
-//             </div>
-//           </div>
-
-//           <button
-//             type="submit"
-//             className="bg-primary text-white py-2 px-4 rounded hover:bg-opacity-90"
-//           >
-//             {isEditMode ? 'Update' : 'Create'}
-//           </button>
-//         </form>
-//       </div>
-//     </>
-//   );
-// };
-
-// export default ApplicationForm;
+export default ApplicationForm;

@@ -1,38 +1,43 @@
 // CHECK POINT 2
 
 // auth.ts
-import { User } from '../types/hms';
-import { usersData } from '../data/sampleData';
+import api from './config';
 
-export async function login(email: string, password: string) {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+// Auth endpoints
+export const login = (credentials: { email: string; password: string }) => 
+  api.post('/api/auth/login', credentials);
 
-  // Find a matching user in the sample data.
-  const user = usersData.find(
-    (u) => u.email === email && u.password_hash === password,
-  );
-  if (!user) {
-    throw new Error('Invalid email or password');
-  }
-  const authToken = generateAuthToken();
+export const register = (userData: {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  role: 'student' | 'staff' | 'admin';
+}) => api.post('/api/auth/register', userData);
 
-  // Optionally, you can persist auth info here (or do it in AuthProvider).
-  return [200, { authToken, user }] as const;
-}
+export const logout = () => api.post('/api/auth/logout');
 
-export async function getUser() {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+export const refreshToken = () => api.post('/api/auth/refresh');
 
-  // Try to retrieve the auth data from sessionStorage.
-  const stored = sessionStorage.getItem('auth');
-  if (stored) {
-    const parsed = JSON.parse(stored) as { authToken: string; user: User };
-    return [200, { authToken: parsed.authToken, user: parsed.user }] as const;
-  } else {
-    throw new Error('No user logged in');
-  }
-}
+export const forgotPassword = (email: string) => 
+  api.post('/api/auth/forgot-password', { email });
 
-function generateAuthToken() {
-  return Math.random().toString(36).substring(2);
-}
+export const resetPassword = (token: string, newPassword: string) => 
+  api.post('/api/auth/reset-password', { token, newPassword });
+
+export const verifyEmail = (token: string) => 
+  api.post('/api/auth/verify-email', { token });
+
+export const resendVerificationEmail = (email: string) => 
+  api.post('/api/auth/resend-verification', { email });
+
+export const getCurrentUser = () => api.get('/api/auth/me');
+
+export const updateProfile = (data: {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  current_password?: string;
+  new_password?: string;
+}) => api.put('/api/auth/profile', data);

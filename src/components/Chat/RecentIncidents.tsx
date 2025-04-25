@@ -1,23 +1,77 @@
 import { Link } from 'react-router-dom';
-import { maintenanceRequestsData, buildingsData, roomsData } from '../../data/sampleData';
+import { useEffect, useState } from 'react';
+import { getAllMaintenanceRequests } from '../../api/incidents';
+import { getCampusApartments, getDormitoryRooms, getTownhouses, getOffCampusProperties } from '../../api/housing';
+
+interface Incident {
+  id: string;
+  name: string;
+  text: string;
+  time: number;
+  status: string;
+}
 
 const RecentIncidentsCard = () => {
-  // Get the 4 most recent maintenance requests
-  const recentIncidents = maintenanceRequestsData
-    .sort((a, b) => b.request_date.getTime() - a.request_date.getTime())
-    .slice(0, 4)
-    .map(request => {
-      const room = roomsData.find(room => room.building_id === request.room_id);
-      const building = buildingsData.find(building => building.id === room?.building_id);
-      
-      return {
-        id: request.request_id,
-        name: request.description,
-        text: `${building?.name || 'Unknown Building'}, ${room?.room_number || 'Unknown Room'}`,
-        time: Math.floor((new Date().getTime() - request.request_date.getTime()) / (1000 * 60)), // Convert to minutes
-        status: request.status
-      };
-    });
+  const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchIncidents = async () => {
+      try {
+        // Fetch maintenance requests
+        const maintenanceResponse = await getAllMaintenanceRequests();
+        const maintenanceRequests = maintenanceResponse.data;
+
+        // Fetch all property types
+        const [campusApts, dormRooms, townhouses, offCampus] = await Promise.all([
+          getCampusApartments(),
+          getDormitoryRooms(),
+          getTownhouses(),
+          getOffCampusProperties()
+        ]);
+
+        // Combine all properties
+        const allProperties = [
+          ...campusApts.data,
+          ...dormRooms.data,
+          ...townhouses.data,
+          ...offCampus.data
+        ];
+
+        // Process and sort incidents
+        const processedIncidents = maintenanceRequests
+          .sort((a: any, b: any) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime())
+          .slice(0, 4)
+          .map((request: any) => {
+            const property = allProperties.find(prop => prop.id === request.propertyId);
+            
+            return {
+              id: request.id,
+              name: request.description,
+              text: property ? `${property.name || 'Unknown Property'}` : 'Unknown Property',
+              time: Math.floor((new Date().getTime() - new Date(request.requestDate).getTime()) / (1000 * 60)), // Convert to minutes
+              status: request.status
+            };
+          });
+
+        setRecentIncidents(processedIncidents);
+      } catch (error) {
+        console.error('Error fetching incidents:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchIncidents();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="w-auto col-span-12 rounded-sm border border-stroke bg-white py-6 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
+        <div className="px-7.5">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-auto col-span-12 rounded-sm border border-stroke bg-white py-6 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
@@ -47,14 +101,14 @@ const RecentIncidentsCard = () => {
 
               <p
                 className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${
-                  item.status === 'completed'
+                  item.status === 'COMPLETED'
                     ? 'bg-success text-success'
-                    : item.status === 'rejected'
+                    : item.status === 'REJECTED'
                     ? 'bg-danger text-danger'
                     : 'bg-warning text-warning'
                 }`}
               >
-                {item.status}
+                {item.status.toLowerCase()}
               </p>
             </div>
           </Link>

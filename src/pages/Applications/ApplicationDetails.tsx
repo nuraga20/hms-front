@@ -1,175 +1,86 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { applicationsData, usersData, contractData, residentsData, roomsData, buildingsData, studentsData } from '../../data/sampleData';
-import { ApplicationStatus } from '../../types/hms';
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
+import { getApplicationFormById, updateApplicationForm } from '../../api/applications';
+
+interface Application {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  housing_type: string;
+  additional_info: string;
+}
 
 const ApplicationDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const applicationId = Number(id);
+  const [application, setApplication] = useState<Application | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<Application['status']>('pending');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [newStatus, setNewStatus] = useState<string>('');
+  const [newStatus, setNewStatus] = useState<Application['status']>('pending');
   const [reviewNotes, setReviewNotes] = useState<string>('');
 
-  // Find the application by ID
-  const application = applicationsData.find(
-    (app) => app.application_id === applicationId
-  );
-
-  // Find the user associated with the application using nu_id
-  const user = application ? usersData.find((user) => user.nu_id === application.nu_id) : null;
-  
-  // Check if the applicant is a faculty member
-  const isFaculty = user?.role === 'faculty';
-
-  // Check if the user already has a contract
-  const existingContract = contractData.find(
-    (contract) => contract.resident_id === user?.nu_id
-  );
-
-  // Find available rooms based on housing type
-  const availableRooms = roomsData.filter(room => {
-    const building = buildingsData.find(b => b.id === room.building_id);
-    
-    // Check if the building type matches the application housing type
-    const typeMatch = building?.type === application?.housing_type;
-    
-    // Check if the room has capacity
-    const hasCapacity = !room.resident_ids || room.resident_ids.length < room.capacity;
-    
-    // Check if the applicant is allowed in this building based on their program/role
-    let isAllowed = false;
-    if (isFaculty) {
-      isAllowed = building?.allowed_residents.includes('Faculty') || false;
-    } else {
-      // For students, check if their program is allowed in this building
-      const student = studentsData.find(s => s.user_id === user?.user_id);
-      if (student) {
-        isAllowed = building?.allowed_residents.includes(student.program) || false;
+  useEffect(() => {
+    const fetchApplication = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const response = await getApplicationFormById(id);
+        setApplication(response.data);
+        setStatus(response.data.status);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch application details');
+        console.error('Error fetching application:', err);
+      } finally {
+        setLoading(false);
       }
-    }
-    
-    return typeMatch && hasCapacity && isAllowed;
-  });
+    };
 
-  // Find rooms with compatible gender for students
-  const compatibleRooms = isFaculty ? availableRooms : availableRooms.filter(room => {
-    // If the room is empty, it's compatible with any gender
-    if (!room.resident_ids || room.resident_ids.length === 0) {
-      return true;
-    }
-    
-    // Check if all existing residents in the room have the same gender as the applicant
-    const existingResidents = room.resident_ids.map(id => 
-      usersData.find(u => u.nu_id === id)
-    ).filter(Boolean);
-    
-    // All residents should have the same gender as the applicant
-    return existingResidents.every(resident => resident?.gender === user?.gender);
-  });
+    fetchApplication();
+  }, [id]);
 
-  const handleDelete = () => {
-    // Find the index of the application to delete
-    const index = applicationsData.findIndex(
-      (app) => app.application_id === applicationId
+  const handleStatusUpdate = async () => {
+    if (!id || !application) return;
+
+    try {
+      await updateApplicationForm(id, { ...application, status });
+      setApplication({ ...application, status });
+    } catch (err) {
+      setError('Failed to update application status');
+      console.error('Error updating application:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
     );
-    
-    if (index !== -1) {
-      // Remove the application from the array
-      applicationsData.splice(index, 1);
-      // Navigate back to the applications list
-      navigate('/applications/applications');
-    }
-  };
+  }
 
-  const handleStatusChange = () => {
-    if (!application || !newStatus) return;
-    
-    // Update the application status
-    application.status = newStatus as any;
-    
-    // Add review notes if provided
-    if (reviewNotes) {
-      application.review_notes = reviewNotes;
-    }
-    
-    // Close the modal
-    setShowStatusModal(false);
-    
-    // Reset the form
-    setNewStatus('');
-    setReviewNotes('');
-  };
-
-  const handleGenerateContract = () => {
-    if (!application || !user || !compatibleRooms.length) {
-      alert('No compatible rooms available for this application. Please check building restrictions and gender compatibility.');
-      return;
-    }
-
-    // Find the first available compatible room
-    const selectedRoom = compatibleRooms[0];
-
-    // Create a new resident
-    const newResident = {
-      resident_id: user.nu_id,
-      user_id: user.user_id,
-      application_id: application.application_id,
-      check_in_date: new Date(),
-      check_out_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-      room_id: selectedRoom.room_id,
-    };
-
-    // Add the resident to the residentsData array
-    residentsData.push(newResident);
-
-    // Update the room's resident_ids
-    if (!selectedRoom.resident_ids) {
-      selectedRoom.resident_ids = [];
-    }
-    selectedRoom.resident_ids.push(user.nu_id);
-
-    // Create a new contract
-    const newContract = {
-      contract_id: contractData.length + 1,
-      resident_id: user.nu_id,
-      room_id: selectedRoom.room_id,
-      building_id: selectedRoom.building_id as 1, // Use the actual building_id from the selected room
-      contract_type: isFaculty ? 'Faculty Lease' : 'Student Lease',
-      start_date: new Date(),
-      end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-      rent_amount: isFaculty ? 1000 : 500,
-      contract_status: 'Active',
-    };
-
-    // Add the contract to the contractData array
-    contractData.push(newContract);
-
-    // Navigate to the contract details page
-    navigate(`/housing/contracts/${newContract.contract_id}`);
-  };
-
-  const handleDownloadPDF = (pdfName: string) => {
-    // Create a link element
-    const link = document.createElement('a');
-    // Set the href to the PDF file path
-    link.href = `/src/data/${pdfName}`;
-    // Set the download attribute with the PDF name
-    link.download = pdfName;
-    // Append the link to the body
-    document.body.appendChild(link);
-    // Trigger the download
-    link.click();
-    // Remove the link from the body
-    document.body.removeChild(link);
-  };
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
 
   if (!application) {
     return (
-      <div className="p-6 bg-white dark:bg-boxdark rounded shadow-md">
-        <h1 className="text-2xl font-bold text-black dark:text-white">Application not found</h1>
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-red-500">Application not found</div>
       </div>
     );
   }
@@ -196,7 +107,9 @@ const ApplicationDetails: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={handleDelete}
+                onClick={() => {
+                  // Implement delete functionality
+                }}
                 className="px-4 py-2 rounded bg-danger text-white hover:bg-opacity-90"
               >
                 Delete
@@ -220,17 +133,12 @@ const ApplicationDetails: React.FC = () => {
               <div className="relative z-20 bg-transparent dark:bg-form-input">
                 <select
                   value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
+                  onChange={(e) => setNewStatus(e.target.value as Application['status'])}
                   className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                 >
-                  <option value="" className="text-body dark:text-bodydark">
-                    Select Status
-                  </option>
-                  {ApplicationStatus.map((status) => (
-                    <option key={status} value={status} className="text-body dark:text-bodydark">
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </option>
-                  ))}
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
                 </select>
                 <span className="absolute top-1/2 right-4 z-10 -translate-y-1/2">
                   <svg
@@ -272,7 +180,9 @@ const ApplicationDetails: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={handleStatusChange}
+                onClick={() => {
+                  // Implement status update functionality
+                }}
                 disabled={!newStatus}
                 className="px-4 py-2 rounded bg-primary text-white hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -291,14 +201,6 @@ const ApplicationDetails: React.FC = () => {
               Application Information
             </h3>
             <div className="flex gap-2">
-              {application.status === 'approved' && !existingContract && (
-                <button
-                  onClick={handleGenerateContract}
-                  className="px-4 py-2 rounded bg-success text-white hover:bg-opacity-90"
-                >
-                  Generate Contract
-                </button>
-              )}
               <button
                 onClick={() => setShowStatusModal(true)}
                 className="px-4 py-2 rounded bg-primary text-white hover:bg-opacity-90"
@@ -320,7 +222,7 @@ const ApplicationDetails: React.FC = () => {
                   Application ID
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {application.application_id}
+                  {application.id}
                 </p>
               </div>
               <div>
@@ -344,7 +246,7 @@ const ApplicationDetails: React.FC = () => {
                   Application Date
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {new Date(application.application_date).toLocaleDateString()}
+                  {new Date(application.created_at).toLocaleDateString()}
                 </p>
               </div>
               <div>
@@ -352,7 +254,7 @@ const ApplicationDetails: React.FC = () => {
                   Review Notes
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {application.review_notes || 'No review notes available'}
+                  {application.additional_info || 'No review notes available'}
                 </p>
               </div>
             </div>
@@ -373,7 +275,7 @@ const ApplicationDetails: React.FC = () => {
                   NU ID
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {user ? user.nu_id : 'Unknown'}
+                  {application.user_id}
                 </p>
               </div>
               <div>
@@ -381,7 +283,7 @@ const ApplicationDetails: React.FC = () => {
                   Full Name
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {user ? `${user.first_name} ${user.last_name}` : 'Unknown'}
+                  {application.first_name} {application.last_name}
                 </p>
               </div>
               <div>
@@ -389,7 +291,7 @@ const ApplicationDetails: React.FC = () => {
                   Email
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {user ? user.email : 'Unknown'}
+                  {application.email}
                 </p>
               </div>
               <div>
@@ -397,15 +299,15 @@ const ApplicationDetails: React.FC = () => {
                   Phone
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {user ? user.phone : 'Unknown'}
+                  {application.phone || 'N/A'}
                 </p>
               </div>
               <div>
                 <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                  Role
+                  Housing Type
                 </label>
                 <p className="text-sm font-medium text-black dark:text-white">
-                  {user ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown'}
+                  {application.housing_type}
                 </p>
               </div>
             </div>
@@ -413,86 +315,20 @@ const ApplicationDetails: React.FC = () => {
         </div>
 
         {/* Family Members or Roommate Preferences Card */}
-        {isFaculty ? (
-          <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
-              <h3 className="font-medium text-black dark:text-white">
-                Family Members
-              </h3>
-            </div>
-            <div className="p-6.5">
-              {application.family_members && application.family_members.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full table-auto">
-                    <thead>
-                      <tr className="bg-gray-2 text-left dark:bg-meta-4">
-                        <th className="py-4 px-4 font-medium text-black dark:text-white">
-                          Name
-                        </th>
-                        <th className="py-4 px-4 font-medium text-black dark:text-white">
-                          NU ID
-                        </th>
-                        <th className="py-4 px-4 font-medium text-black dark:text-white">
-                          Relationship
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {application.family_members.map((member, index) => (
-                        <tr key={index}>
-                          <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                            <p className="text-black dark:text-white">{member.name}</p>
-                          </td>
-                          <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                            <p className="text-black dark:text-white">{member.nuid}</p>
-                          </td>
-                          <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                            <p className="text-black dark:text-white">{member.relationship}</p>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm font-medium text-black dark:text-white">
-                  No family members specified
-                </p>
-              )}
-            </div>
+        {/* This section needs to be updated to use real data */}
+        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+          <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
+            <h3 className="font-medium text-black dark:text-white">
+              Family Members
+            </h3>
           </div>
-        ) : (
-          <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark">
-              <h3 className="font-medium text-black dark:text-white">
-                Roommate Preferences
-              </h3>
-            </div>
-            <div className="p-6.5">
-              {application.roommate_preferences?.length ? (
-                <div className="grid grid-cols-1 gap-5.5 sm:grid-cols-2">
-                  {application.roommate_preferences.map((pref, index) => {
-                    const roommate = usersData.find(user => user.nu_id === pref);
-                    return (
-                      <div key={index}>
-                        <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                          Preferred Roommate {index + 1}
-                        </label>
-                        <p className="text-sm font-medium text-black dark:text-white">
-                          {roommate ? `${roommate.first_name} ${roommate.last_name} (${roommate.nu_id})` : `NU ID: ${pref}`}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm font-medium text-black dark:text-white">
-                  No roommate preferences specified
-                </p>
-              )}
-            </div>
+          <div className="p-6.5">
+            {/* This section needs to be updated to use real data */}
+            <p className="text-sm font-medium text-black dark:text-white">
+              No family members specified
+            </p>
           </div>
-        )}
+        </div>
 
         {/* Documents Card */}
         <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
@@ -502,13 +338,16 @@ const ApplicationDetails: React.FC = () => {
             </h3>
           </div>
           <div className="p-6.5">
+            {/* This section needs to be updated to use real data */}
             <div className="grid grid-cols-1 gap-5.5 sm:grid-cols-2">
               <div>
                 <label className="mb-3 block text-sm font-medium text-black dark:text-white">
                   Self Address Document
                 </label>
                 <button
-                  onClick={() => handleDownloadPDF("Self Address Document.pdf")}
+                  onClick={() => {
+                    // Implement download functionality
+                  }}
                   className="flex items-center gap-2 text-primary hover:text-primary-dark"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -522,7 +361,9 @@ const ApplicationDetails: React.FC = () => {
                   Mother's Address Document
                 </label>
                 <button
-                  onClick={() => handleDownloadPDF("Mother's Address Document.pdf")}
+                  onClick={() => {
+                    // Implement download functionality
+                  }}
                   className="flex items-center gap-2 text-primary hover:text-primary-dark"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -536,7 +377,9 @@ const ApplicationDetails: React.FC = () => {
                   Father's Address Document
                 </label>
                 <button
-                  onClick={() => handleDownloadPDF("Father's Address Document.pdf")}
+                  onClick={() => {
+                    // Implement download functionality
+                  }}
                   className="flex items-center gap-2 text-primary hover:text-primary-dark"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -550,7 +393,9 @@ const ApplicationDetails: React.FC = () => {
                   Mother's Work Certificate
                 </label>
                 <button
-                  onClick={() => handleDownloadPDF("Mother's Work Certificate.pdf")}
+                  onClick={() => {
+                    // Implement download functionality
+                  }}
                   className="flex items-center gap-2 text-primary hover:text-primary-dark"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -564,7 +409,9 @@ const ApplicationDetails: React.FC = () => {
                   Father's Work Certificate
                 </label>
                 <button
-                  onClick={() => handleDownloadPDF("Father's Work Certificate.pdf")}
+                  onClick={() => {
+                    // Implement download functionality
+                  }}
                   className="flex items-center gap-2 text-primary hover:text-primary-dark"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

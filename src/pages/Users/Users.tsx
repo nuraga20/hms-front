@@ -1,9 +1,24 @@
 import Breadcrumb from '../../components/Breadcrumbs/Breadcrumb';
 import UsersTable from '../../components/Tables/UsersTable';
-import React, { useState } from 'react';
-import { usersData } from '../../data/sampleData';
+import React, { useState, useEffect } from 'react';
+import { getAllUsers } from '../../api/users';
+
+interface User {
+  user_id: string;
+  nu_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  role: string;
+}
 
 const Users: React.FC = () => {
+  // State for users data and loading
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   // State for filters
   const [nuidFilter, setNuidFilter] = useState<string>('');
   const [nameFilter, setNameFilter] = useState<string>('');
@@ -11,12 +26,31 @@ const Users: React.FC = () => {
   const [phoneFilter, setPhoneFilter] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('');
 
+  // Fetch users data
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        const response = await getAllUsers();
+        setUsers(response.data);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch users data');
+        console.error('Error fetching users:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   // Handle export to CSV
   const handleExport = () => {
     const headers = ['ID', 'NUID', 'Name', 'Email', 'Phone', 'Role'];
     const csvContent = [
       headers.join(','),
-      ...usersData.map(user => [
+      ...users.map(user => [
         user.user_id,
         user.nu_id,
         `${user.first_name} ${user.last_name}`,
@@ -36,6 +70,22 @@ const Users: React.FC = () => {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -125,6 +175,7 @@ const Users: React.FC = () => {
 
         {/* Users Table */}
         <UsersTable 
+          users={users}
           nuidFilter={nuidFilter}
           nameFilter={nameFilter}
           emailFilter={emailFilter}
